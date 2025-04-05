@@ -62,6 +62,8 @@ uint8_t LikelihoodFieldMap::likelihood(double x, double y)
 	return likelihoods_[ix][iy];
 }
 
+// 장애물 위치 → (x, y)
+// 반경 range 안에 likelihood 퍼뜨리기!
 void LikelihoodFieldMap::setLikelihood(int x, int y, double range)
 {
 	int cell_num = static_cast<int>(ceil(range / resolution_));

@@ -65,6 +65,7 @@ void ExpResetMcl2::sensorUpdate(double lidar_x, double lidar_y, double lidar_t, 
 		}
 	}
 
+	// paticles weight 다 normalizing
 	if (normalizeBelief() > 0.000001) {
 		resampling();
 	} else {
@@ -74,6 +75,7 @@ void ExpResetMcl2::sensorUpdate(double lidar_x, double lidar_y, double lidar_t, 
 	processed_seq_ = scan_.seq_;
 }
 
+// 즉, 현재 파티클들 중 얼마나 많은 파티클이 장애물과 겹치지 않고 적절한 위치에 있는지를 나타내는 지표야.
 double ExpResetMcl2::nonPenetrationRate(int skip, LikelihoodFieldMap * map, Scan & scan)
 {
 	static uint16_t shift = 0;
@@ -91,6 +93,9 @@ double ExpResetMcl2::nonPenetrationRate(int skip, LikelihoodFieldMap * map, Scan
 	return static_cast<double>((counter - penetrating)) / counter;
 }
 
+// 그냥 무작위로 확 흩어버리는 게 아니라
+// 현재 위치 주변으로 확산(Expansion) 시키는 방식이야.
+// 이걸 expansion reset이라 불러.
 void ExpResetMcl2::expansionReset(void)
 {
 	for (auto & p : particles_) {

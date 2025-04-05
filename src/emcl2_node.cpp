@@ -127,6 +127,9 @@ void EMcl2Node::initTF(void)
 void EMcl2Node::initPF(void)
 {
 	std::shared_ptr<LikelihoodFieldMap> map = std::move(initMap());
+	// std::move(...)는 소유권을 이동시켜서 복사를 피하고 성능을 높이는 역할을 해요.
+	// map이라는 스마트 포인터에 initMap()이 만든 객체의 소유권을 넘긴다.
+
 	std::shared_ptr<OdomModel> om = std::move(initOdometry());
 
 	Scan scan;
@@ -239,11 +242,13 @@ void EMcl2Node::loop(void)
 	}
 
 	if (init_pf_) {
+		// 일단 odom 획득
 		double x, y, t;
 		if (!getOdomPose(x, y, t)) {
 			RCLCPP_INFO(get_logger(), "can't get odometry info");
 			return;
 		}
+		// 얻은 odom으로 control input 획득
 		pf_->motionUpdate(x, y, t);
 
 		double lx, ly, lt;
@@ -252,7 +257,7 @@ void EMcl2Node::loop(void)
 			RCLCPP_INFO(get_logger(), "can't get lidar pose info");
 			return;
 		}
-
+			
 		pf_->sensorUpdate(lx, ly, lt, inv);
 
 		double x_var, y_var, t_var, xy_cov, yt_cov, tx_cov;
@@ -357,6 +362,9 @@ void EMcl2Node::publishParticles(void)
 
 bool EMcl2Node::getOdomPose(double & x, double & y, double & yaw)
 {
+	// ident는 (0, 0, 0)의 pose, 즉 로봇 기준점에서의 Pose를 의미해.
+	// "base_footprint" (또는 "base_link") 기준으로 "지금 여기!"를 뜻함.
+	// 타임스탬프 0이면 가장 최신 TF를 쓰겠다는 의미.
 	geometry_msgs::msg::PoseStamped ident;
 	ident.header.frame_id = footprint_frame_id_;
 	ident.header.stamp = rclcpp::Time(0);
@@ -377,6 +385,9 @@ bool EMcl2Node::getOdomPose(double & x, double & y, double & yaw)
 	return true;
 }
 
+// LiDAR의 pose(x, y, yaw)를 현재 시간 기준으로 얻어옴.
+// LiDAR가 뒤집혀(inverted) 있는지도 판단해서 inv에 저장.
+// 성공 시 true, 실패 시 false
 bool EMcl2Node::getLidarPose(double & x, double & y, double & yaw, bool & inv)
 {
 	geometry_msgs::msg::PoseStamped ident;
