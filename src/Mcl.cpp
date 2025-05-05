@@ -12,13 +12,14 @@
 namespace emcl2
 {
 Mcl::Mcl(
-  const Pose & p, int num, const Scan & scan, const std::shared_ptr<OdomModel> & odom_model,
+  const Pose & p, int num, const Scan & scan1, const Scan & scan2, const std::shared_ptr<OdomModel> & odom_model,
   const std::shared_ptr<LikelihoodFieldMap> & map)
 : last_odom_(NULL), prev_odom_(NULL)
 {
 	odom_model_ = move(odom_model);
 	map_ = move(map);
-	scan_ = scan;
+	scan1_ = scan1;
+	scan2_ = scan2;
 
 	if (num <= 0) {
 		RCLCPP_ERROR(rclcpp::get_logger("emcl2_node"), "NO PARTICLE");
@@ -29,8 +30,11 @@ Mcl::Mcl(
 		particles_.push_back(particle);
 	}
 
-	processed_seq_ = -1;
-	alpha_ = 1.0;
+	processed1_seq_ = -1;
+	processed2_seq_ = -1;
+
+	alpha1_ = 1.0;
+	alpha2_ = 1.0;
 
 	for (int i = 0; i < (1 << 16); i++) {
 		cos_[i] = cos(M_PI * i / (1 << 15));
@@ -76,44 +80,13 @@ void Mcl::resampling(void)
 	}
 }
 
-void Mcl::sensorUpdate(double lidar_x, double lidar_y, double lidar_t, bool inv)
+void Mcl::sensorUpdate(pcl::PointCloud<pcl::PointXYZ>::Ptr& combined_cloud)
 {
-	if (processed_seq_ == scan_.seq_) {
-		return;
-	}
+	std::cout << "ASDFASDFASDF" << std::endl;
 
-	Scan scan;
-	int seq = -1;
-	while (seq != scan_.seq_) {  // trying to copy the latest scan before next
-		seq = scan_.seq_;
-		scan = scan_;
-	}
-
-	scan.lidar_pose_x_ = lidar_x;
-	scan.lidar_pose_y_ = lidar_y;
-	scan.lidar_pose_yaw_ = lidar_t;
-
-	int i = 0;
-	if (!inv) {
-		for ([[maybe_unused]] auto & _ : scan.ranges_) {
-			scan.directions_16bit_.push_back(Pose::get16bitRepresentation(
-			  scan.angle_min_ + (i++) * scan.angle_increment_));
-		}
-	} else {
-		for ([[maybe_unused]] auto & _ : scan.ranges_) {
-			scan.directions_16bit_.push_back(Pose::get16bitRepresentation(
-			  scan.angle_max_ - (i++) * scan.angle_increment_));
-		}
-	}
-
-	double valid_pct = 0.0;
-	int valid_beams = scan.countValidBeams(&valid_pct);
-	if (valid_beams == 0) {
-		return;
-	}
-
+	// 각 파티클 weight 계산.
 	for (auto & p : particles_) {
-		p.w_ *= p.likelihood(map_.get(), scan);
+		p.w_ *= p.likelihood(map_.get(), combined_cloud);
 	}
 
 	if (normalizeBelief() > 0.000001) {
@@ -122,7 +95,6 @@ void Mcl::sensorUpdate(double lidar_x, double lidar_y, double lidar_t, bool inv)
 		resetWeight();
 	}
 
-	processed_seq_ = scan_.seq_;
 }
 
 void Mcl::motionUpdate(double x, double y, double t)
@@ -215,22 +187,40 @@ double Mcl::normalizeAngle(double t)
 	return t;
 }
 
-void Mcl::setScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
+void Mcl::setScan1(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
 {
-	if (msg->ranges.size() != scan_.ranges_.size()) {
-		scan_.ranges_.resize(msg->ranges.size());
+	if (msg->ranges.size() != scan1_.ranges_.size()) {
+		scan1_.ranges_.resize(msg->ranges.size());
 	}
 
-	scan_.seq_ = msg->header.stamp.sec;
+	scan1_.seq_ = msg->header.stamp.sec;
 	for (size_t i = 0; i < msg->ranges.size(); i++) {
-		scan_.ranges_[i] = msg->ranges[i];
+		scan1_.ranges_[i] = msg->ranges[i];
 	}
 
-	scan_.angle_min_ = msg->angle_min;
-	scan_.angle_max_ = msg->angle_max;
-	scan_.angle_increment_ = msg->angle_increment;
-	scan_.range_min_ = msg->range_min;
-	scan_.range_max_ = msg->range_max;
+	scan1_.angle_min_ = msg->angle_min;
+	scan1_.angle_max_ = msg->angle_max;
+	scan1_.angle_increment_ = msg->angle_increment;
+	scan1_.range_min_ = msg->range_min;
+	scan1_.range_max_ = msg->range_max;
+}
+
+void Mcl::setScan2(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
+{
+	if (msg->ranges.size() != scan2_.ranges_.size()) {
+		scan2_.ranges_.resize(msg->ranges.size());
+	}
+
+	scan2_.seq_ = msg->header.stamp.sec;
+	for (size_t i = 0; i < msg->ranges.size(); i++) {
+		scan2_.ranges_[i] = msg->ranges[i];
+	}
+
+	scan2_.angle_min_ = msg->angle_min;
+	scan2_.angle_max_ = msg->angle_max;
+	scan2_.angle_increment_ = msg->angle_increment;
+	scan2_.range_min_ = msg->range_min;
+	scan2_.range_max_ = msg->range_max;
 }
 
 double Mcl::normalizeBelief(void)
@@ -258,6 +248,8 @@ void Mcl::resetWeight(void)
 	}
 }
 
+
+// 여기에 dampling기능 추가
 void Mcl::initialize(double x, double y, double t)
 {
 	Pose new_pose(x, y, t);

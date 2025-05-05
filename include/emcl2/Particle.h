@@ -7,6 +7,10 @@
 #include "emcl2/LikelihoodFieldMap.h"
 #include "emcl2/Pose.h"
 
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+
 namespace emcl2
 {
 class Particle
@@ -23,8 +27,7 @@ class Particle
 		}
 		return *this;
 	}
-
-	double likelihood(LikelihoodFieldMap * map, Scan & scan);
+	double likelihood(LikelihoodFieldMap * map, pcl::PointCloud<pcl::PointXYZ>::Ptr& combined_cloud);
 	bool wallConflict(LikelihoodFieldMap * map, Scan & scan, double threshold, bool replace);
 	Pose p_;
 	double w_;

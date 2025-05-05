@@ -35,10 +35,13 @@ EMcl2Node::EMcl2Node()
   init_pf_(false),
   init_request_(false),
   simple_reset_request_(false),
-  scan_receive_(false),
+  scan1_receive_(false),
+  scan2_receive_(false),
   map_receive_(false)
 {
 	// declare ros parameters
+	cloud_1_.reset(new pcl::PointCloud<pcl::PointXYZ>);
+	cloud_2_.reset(new pcl::PointCloud<pcl::PointXYZ>);
 	declareParameter();
 	initCommunication();
 }
@@ -51,6 +54,11 @@ void EMcl2Node::declareParameter()
 	this->declare_parameter("footprint_frame_id", std::string("base_footprint"));
 	this->declare_parameter("odom_frame_id", std::string("odom"));
 	this->declare_parameter("base_frame_id", std::string("base_link"));
+
+	this->declare_parameter("scan1_topic", std::string("scan_right"));
+	this->declare_parameter("scan2_topic", std::string("scan_left"));
+	this->declare_parameter("scan1_frame_id", std::string("laser_right"));
+	this->declare_parameter("scna2_frame_id", std::string("laser_left"));
 
 	this->declare_parameter("odom_freq", 20);
 	this->declare_parameter("transform_tolerance", 0.2);
@@ -81,12 +89,35 @@ void EMcl2Node::declareParameter()
 
 void EMcl2Node::initCommunication(void)
 {
+	this->get_parameter("scan1_topic", scan1_topic_);
+	this->get_parameter("scan2_topic", scan2_topic_);
+	this->get_parameter("scan1_frame_id", scan1_frame_id_);
+	this->get_parameter("scan2_frame_id", scan2_frame_id_);
+
+	this->get_parameter("global_frame_id", global_frame_id_);
+	this->get_parameter("footprint_frame_id", footprint_frame_id_);
+	this->get_parameter("odom_frame_id", odom_frame_id_);
+	this->get_parameter("base_frame_id", base_frame_id_);
+
+	this->get_parameter("odom_freq", odom_freq_);
+
+	this->get_parameter("transform_tolerance", transform_tolerance_);
+
 	particlecloud_pub_ = create_publisher<geometry_msgs::msg::PoseArray>("particlecloud", 2);
 	pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>("mcl_pose", 2);
 	alpha_pub_ = create_publisher<std_msgs::msg::Float32>("alpha", 2);
+	combined_cloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/combined_cloud", 10);
 
-	laser_scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
-	  "scan", 2, std::bind(&EMcl2Node::cbScan, this, std::placeholders::_1));
+	// laser_scan_sub1_ = create_subscription<sensor_msgs::msg::LaserScan>(
+	//   scan1_topic_, 2, std::bind(&EMcl2Node::cbScan1, this, std::placeholders::_1));
+	// laser_scan_sub1_ = create_subscription<sensor_msgs::msg::LaserScan>(
+	//   scan2_topic_, 2, std::bind(&EMcl2Node::cbScan2, this, std::placeholders::_1));
+	
+	laser_scan_sub1_ = create_subscription<sensor_msgs::msg::LaserScan>(
+		"scan_right", 2, std::bind(&EMcl2Node::cbScan1, this, std::placeholders::_1));
+	laser_scan_sub2_ = create_subscription<sensor_msgs::msg::LaserScan>(
+		"scan_left", 2, std::bind(&EMcl2Node::cbScan2, this, std::placeholders::_1));
+		
 	initial_pose_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
 	  "initialpose", 2,
 	  std::bind(&EMcl2Node::initialPoseReceived, this, std::placeholders::_1));
@@ -98,14 +129,6 @@ void EMcl2Node::initCommunication(void)
 	  "global_localization",
 	  std::bind(&EMcl2Node::cbSimpleReset, this, std::placeholders::_1, std::placeholders::_2));
 
-	this->get_parameter("global_frame_id", global_frame_id_);
-	this->get_parameter("footprint_frame_id", footprint_frame_id_);
-	this->get_parameter("odom_frame_id", odom_frame_id_);
-	this->get_parameter("base_frame_id", base_frame_id_);
-
-	this->get_parameter("odom_freq", odom_freq_);
-
-	this->get_parameter("transform_tolerance", transform_tolerance_);
 }
 
 void EMcl2Node::initTF(void)
@@ -132,10 +155,15 @@ void EMcl2Node::initPF(void)
 
 	std::shared_ptr<OdomModel> om = std::move(initOdometry());
 
-	Scan scan;
-	this->get_parameter("laser_min_range", scan.range_min_);
-	this->get_parameter("laser_max_range", scan.range_max_);
-	this->get_parameter("scan_increment", scan.scan_increment_);
+	Scan scan1;
+	this->get_parameter("laser_min_range", scan1.range_min_);
+	this->get_parameter("laser_max_range", scan1.range_max_);
+	this->get_parameter("scan_increment", scan1.scan_increment_);
+
+	Scan scan2;
+	this->get_parameter("laser_min_range", scan2.range_min_);
+	this->get_parameter("laser_max_range", scan2.range_max_);
+	this->get_parameter("scan_increment", scan2.scan_increment_);
 
 	Pose init_pose;
 	this->get_parameter("initial_pose_x", init_pose.x_);
@@ -157,7 +185,7 @@ void EMcl2Node::initPF(void)
 	this->get_parameter("sensor_reset", sensor_reset);
 
 	pf_.reset(new ExpResetMcl2(
-	  init_pose, num_particles, scan, om, map, alpha_th, ex_rad_pos, ex_rad_ori,
+	  init_pose, num_particles, scan1, scan2, om, map, alpha_th, ex_rad_pos, ex_rad_ori,
 	  extraction_rate, range_threshold, sensor_reset));
 
 	init_pf_ = true;
@@ -190,13 +218,79 @@ void EMcl2Node::receiveMap(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr ms
 	initTF();
 }
 
-void EMcl2Node::cbScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
+void EMcl2Node::cbScan1(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
 {
 	if (init_pf_) {
-		scan_receive_ = true;
-		scan_time_stamp_ = msg->header.stamp;
-		scan_frame_id_ = msg->header.frame_id;
-		pf_->setScan(msg);
+
+		scan1_frame_id_ = "laser_right";
+
+		// RCLCPP_INFO(get_logger(), "jiminimiijminini1:","%s", scan1_frame_id_.c_str());
+
+
+		double lx1, ly1, lt1;
+		bool inv1;
+		if (!getLidarPose(lx1, ly1, lt1, inv1, scan1_frame_id_)) {
+			RCLCPP_INFO(get_logger(), "can't get lidar pose info");
+			return;
+		}	
+
+        // LaserScan 메시지를 sensor_msgs::msg::PointCloud2로 변환
+        sensor_msgs::msg::PointCloud2 cloud_msg;
+        laser_geometry::LaserProjection projector;
+        projector.projectLaser(*msg, cloud_msg);
+
+        pcl::fromROSMsg(cloud_msg, *cloud_1_);
+
+		// 변환 행렬 미리 계산 (Eigen를 사용)
+		Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+		transform.translation() << static_cast<float>(lx1), static_cast<float>(ly1), 0.0f;
+		transform.rotate(Eigen::AngleAxisf(static_cast<float>(lt1), Eigen::Vector3f::UnitZ()));
+
+		// 전체 포인트 클라우드에 변환 적용 (최적화된 내부 연산 사용)
+		pcl::transformPointCloud(*cloud_1_, *cloud_1_, transform);
+
+        scan1_receive_ = true;
+        scan_time_stamp_ = msg->header.stamp;
+        scan1_frame_id_ = msg->header.frame_id;
+	}
+}
+
+void EMcl2Node::cbScan2(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
+{
+	if (init_pf_) {
+
+		scan2_frame_id_ = "laser_left";
+
+
+		// RCLCPP_INFO(get_logger(), "jiminimiijminini2:","%s", scan2_frame_id_.c_str());
+
+		double lx2, ly2, lt2;
+		bool inv2;
+		if (!getLidarPose(lx2, ly2, lt2, inv2, scan2_frame_id_)) {
+			RCLCPP_INFO(get_logger(), "can't get lidar pose info");
+			return;
+		}	
+
+        // LaserScan 메시지를 sensor_msgs::msg::PointCloud2로 변환
+        sensor_msgs::msg::PointCloud2 cloud_msg;
+        laser_geometry::LaserProjection projector;
+        projector.projectLaser(*msg, cloud_msg);
+
+        // sensor_msgs::msg::PointCloud2를 pcl::PointCloud<pcl::PointXYZ>로 변환
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::fromROSMsg(cloud_msg, *cloud_2_);
+
+		// 변환 행렬 미리 계산 (Eigen를 사용)
+		Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+		transform.translation() << static_cast<float>(lx2), static_cast<float>(ly2), 0.0f;
+		transform.rotate(Eigen::AngleAxisf(static_cast<float>(lt2), Eigen::Vector3f::UnitZ()));
+
+		// 전체 포인트 클라우드에 변환 적용 (최적화된 내부 연산 사용)
+		pcl::transformPointCloud(*cloud_2_, *cloud_2_, transform);
+
+        scan2_receive_ = true;
+        scan_time_stamp_ = msg->header.stamp;
+        scan2_frame_id_ = msg->header.frame_id;
 	}
 }
 
@@ -205,14 +299,14 @@ void EMcl2Node::initialPoseReceived(
 {
 	RCLCPP_INFO(get_logger(), "Run receiveInitialPose");
 	if (!initialpose_receive_) {
-		if (scan_receive_ && map_receive_) {
+		if (scan1_receive_ && scan2_receive_ && map_receive_) {
 			init_x_ = msg->pose.pose.position.x;
 			init_y_ = msg->pose.pose.position.y;
 			init_t_ = tf2::getYaw(msg->pose.pose.orientation);
 			pf_->initialize(init_x_, init_y_, init_t_);
 			initialpose_receive_ = true;
 		} else {
-			if (!scan_receive_) {
+			if ( !(scan1_receive_ && scan2_receive_) ) {
 				RCLCPP_WARN(
 				  get_logger(),
 				  "Not yet received scan. Therefore, MCL cannot be initiated.");
@@ -242,23 +336,45 @@ void EMcl2Node::loop(void)
 	}
 
 	if (init_pf_) {
+
+		if(!(scan1_receive_ || scan2_receive_))
+			return;
+		
 		// 일단 odom 획득
 		double x, y, t;
 		if (!getOdomPose(x, y, t)) {
 			RCLCPP_INFO(get_logger(), "can't get odometry info");
 			return;
 		}
+
+		// std::cout << "x, y, t:" << x << " " << y << " " << t << std::endl;
 		// 얻은 odom으로 control input 획득
 		pf_->motionUpdate(x, y, t);
 
-		double lx, ly, lt;
-		bool inv;
-		if (!getLidarPose(lx, ly, lt, inv)) {
-			RCLCPP_INFO(get_logger(), "can't get lidar pose info");
-			return;
-		}
-			
-		pf_->sensorUpdate(lx, ly, lt, inv);
+		// 1. 클라우드 합치기
+		pcl::PointCloud<pcl::PointXYZ>::Ptr combined_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+		if(scan1_receive_)
+			*combined_cloud = *cloud_1_;
+		if(scan2_receive_)
+			*combined_cloud += *cloud_2_;
+		
+		// std::cout << cloud_1_->size() << ": cloud_1_->size()" << std::endl;
+
+		// std::cout << cloud_2_->size() << ": cloud_2_->size()" << std::endl;
+
+		// pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+		pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
+		voxel_filter.setInputCloud(combined_cloud);
+		voxel_filter.setLeafSize(0.02f, 0.02f, 0.02f);  
+		voxel_filter.filter(*combined_cloud);		
+
+		// std::cout << combined_cloud->size() << ": combined_cloud->size()" << std::endl;
+
+		publishCombinedCloud(combined_cloud);
+
+		// likelihood 계산
+		// resampling
+		pf_->sensorUpdate(combined_cloud);
 
 		double x_var, y_var, t_var, xy_cov, yt_cov, tx_cov;
 		pf_->meanPose(x, y, t, x_var, y_var, t_var, xy_cov, yt_cov, tx_cov);
@@ -268,10 +384,10 @@ void EMcl2Node::loop(void)
 		publishParticles();
 
 		std_msgs::msg::Float32 alpha_msg;
-		alpha_msg.data = static_cast<float>(pf_->alpha_);
+		alpha_msg.data = static_cast<float>((pf_->alpha1_ + pf_->alpha2_)/2);
 		alpha_pub_->publish(alpha_msg);
 	} else {
-		if (!scan_receive_) {
+		if (!(scan1_receive_ && scan2_receive_)) {
 			RCLCPP_WARN(
 			  get_logger(),
 			  "Not yet received scan. Therefore, MCL cannot be initiated.");
@@ -282,6 +398,20 @@ void EMcl2Node::loop(void)
 			  "Not yet received map. Therefore, MCL cannot be initiated.");
 		}
 	}
+}
+
+void EMcl2Node::publishCombinedCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &combined_cloud)
+{
+  // sensor_msgs의 PointCloud2 메시지로 변환
+  sensor_msgs::msg::PointCloud2 cloud_msg;
+  pcl::toROSMsg(*combined_cloud, cloud_msg);
+  
+  // header stamp와 frame_id 설정 (적절한 프레임 이름으로 변경 필요)
+  cloud_msg.header.stamp = this->get_clock()->now();
+  cloud_msg.header.frame_id = footprint_frame_id_;  // 예: "map" 또는 "odom", 적절한 frame_id로 수정
+
+  // publisher를 통해 메시지 발행
+  combined_cloud_pub_->publish(cloud_msg);
 }
 
 void EMcl2Node::publishPose(
@@ -388,10 +518,10 @@ bool EMcl2Node::getOdomPose(double & x, double & y, double & yaw)
 // LiDAR의 pose(x, y, yaw)를 현재 시간 기준으로 얻어옴.
 // LiDAR가 뒤집혀(inverted) 있는지도 판단해서 inv에 저장.
 // 성공 시 true, 실패 시 false
-bool EMcl2Node::getLidarPose(double & x, double & y, double & yaw, bool & inv)
+bool EMcl2Node::getLidarPose(double & x, double & y, double & yaw, bool & inv, std::string scan_frame_id)
 {
 	geometry_msgs::msg::PoseStamped ident;
-	ident.header.frame_id = scan_frame_id_;
+	ident.header.frame_id = scan_frame_id;
 	ident.header.stamp = ros_clock_.now();
 	tf2::toMsg(tf2::Transform::getIdentity(), ident.pose);
 
@@ -400,7 +530,7 @@ bool EMcl2Node::getLidarPose(double & x, double & y, double & yaw, bool & inv)
 		this->tf_->transform(ident, lidar_pose, base_frame_id_);
 	} catch (tf2::TransformException & e) {
 		RCLCPP_WARN(
-		  get_logger(), "Failed to compute lidar pose, skipping scan (%s)", e.what());
+		  get_logger(), "Failed to compute lidar pose, skipping scannnn (%s)", e.what());
 		return false;
 	}
 

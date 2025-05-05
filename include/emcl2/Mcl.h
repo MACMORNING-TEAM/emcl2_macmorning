@@ -16,6 +16,10 @@
 #include <sstream>
 #include <vector>
 
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+
 namespace emcl2
 {
 class Mcl
@@ -23,19 +27,23 @@ class Mcl
       public:
 	Mcl() {}
 	Mcl(
-	  const Pose & p, int num, const Scan & scan, const std::shared_ptr<OdomModel> & odom_model,
+	  const Pose & p, int num, const Scan & scan1, const Scan & scan2, const std::shared_ptr<OdomModel> & odom_model,
 	  const std::shared_ptr<LikelihoodFieldMap> & map);
 	~Mcl();
 
 	std::vector<Particle> particles_;
-	double alpha_;
+	double alpha1_;
+	double alpha2_;
 
-	void sensorUpdate(double lidar_x, double lidar_y, double lidar_t, bool inv);
+	void sensorUpdate(pcl::PointCloud<pcl::PointXYZ>::Ptr& combined_cloud);
+
 	void motionUpdate(double x, double y, double t);
 
 	void initialize(double x, double y, double t);
 
-	void setScan(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg);
+	void setScan1(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg);
+	void setScan2(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg);
+
 	void meanPose(
 	  double & x_mean, double & y_mean, double & t_mean, double & x_var, double & y_var,
 	  double & t_var, double & xy_cov, double & yt_cov, double & tx_cov);
@@ -49,8 +57,12 @@ class Mcl
 	Pose * last_odom_;
 	Pose * prev_odom_;
 
-	Scan scan_;
-	int processed_seq_;
+	Scan scan1_;
+	Scan scan2_;
+
+	int processed1_seq_;
+	int processed2_seq_;
+
 
 	double normalizeAngle(double t);
 	void resampling(void);

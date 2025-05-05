@@ -5,7 +5,14 @@
     global_frame_id: "map"
     odom_frame_id: "odom"
     base_frame_id: "base_link"
-    footprint_frame_id: "base_footprint"
+
+    scan1_frame_id: "laser_right"
+    scan2_frame_id: "laser_left"
+    scan1_topic: "/scan_right"
+    scan2_topic: "/scan_left"
+
+    footprint_frame_id: "base_link"
+    
     laser_min_range: 0.0
     laser_max_range: 100000000.0
     scan_increment: 1

@@ -11,23 +11,22 @@ namespace emcl2
 {
 Particle::Particle(double x, double y, double t, double w) : p_(x, y, t) { w_ = w; }
 
-double Particle::likelihood(LikelihoodFieldMap * map, Scan & scan)
+double Particle::likelihood(LikelihoodFieldMap * map, pcl::PointCloud<pcl::PointXYZ>::Ptr& combined_cloud)
 {
 	uint16_t t = p_.get16bitRepresentation();
 	double lidar_x =
-	  p_.x_ + scan.lidar_pose_x_ * Mcl::cos_[t] - scan.lidar_pose_y_ * Mcl::sin_[t];
+	  p_.x_; //+ scan.lidar_pose_x_ * Mcl::cos_[t] - scan.lidar_pose_y_ * Mcl::sin_[t];
 	double lidar_y =
-	  p_.y_ + scan.lidar_pose_x_ * Mcl::sin_[t] + scan.lidar_pose_y_ * Mcl::cos_[t];
-	uint16_t lidar_yaw = Pose::get16bitRepresentation(scan.lidar_pose_yaw_);
+	  p_.y_; //+ scan.lidar_pose_x_ * Mcl::sin_[t] + scan.lidar_pose_y_ * Mcl::cos_[t];
+	// uint16_t lidar_yaw = Pose::get16bitRepresentation(scan.lidar_pose_yaw_);
 
 	double ans = 0.0;
-	for (size_t i = 0; i < scan.ranges_.size(); i += scan.scan_increment_) {
-		if (!scan.valid(scan.ranges_[i])) {
-			continue;
-		}
-		uint16_t a = scan.directions_16bit_[i] + t + lidar_yaw;
-		double lx = lidar_x + scan.ranges_[i] * Mcl::cos_[a];
-		double ly = lidar_y + scan.ranges_[i] * Mcl::sin_[a];
+
+    for (const auto &pt: combined_cloud->points) {
+
+		uint16_t a = t;//scan.directions_16bit_[i] + t + lidar_yaw;
+		double lx = lidar_x + pt.x * Mcl::cos_[a] - pt.y * Mcl::sin_[a];
+		double ly = lidar_y + pt.x * Mcl::sin_[a] + pt.y * Mcl::cos_[a];
 
 		ans += map->likelihood(lx, ly);
 	}

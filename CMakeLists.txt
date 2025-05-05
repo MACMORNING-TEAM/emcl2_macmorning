@@ -10,6 +10,10 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake_auto REQUIRED)
+find_package(PCL REQUIRED)
+find_package(laser_geometry REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(pcl_conversions REQUIRED)
 
 ament_auto_find_build_dependencies()
 
@@ -23,6 +27,22 @@ ament_auto_add_executable(emcl2_node
   src/LikelihoodFieldMap.cpp
   src/emcl2_node.cpp
 )
+
+# PCL 관련 include 및 라이브러리 링크 설정
+target_include_directories(emcl2_node PRIVATE
+  ${PCL_INCLUDE_DIRS}
+  ${laser_geometry_INCLUDE_DIRS}
+)
+
+target_link_libraries(emcl2_node ${PCL_LIBRARIES})
+
+# ament_target_dependencies를 사용하여 ROS2 의존성 추가
+ament_target_dependencies(emcl2_node
+  "laser_geometry"
+  "sensor_msgs"
+  "pcl_conversions"
+)
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
