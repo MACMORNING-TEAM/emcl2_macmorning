@@ -1,4 +1,4 @@
-# emcl2_ros2: mcl with expansion resetting (version 2)
+# emcl2_ros2_macmorning: mcl with expansion resetting (version 2)
 
 [![test](https://github.com/CIT-Autonomous-Robot-Lab/emcl2_ros2/actions/workflows/test.yml/badge.svg)](https://github.com/CIT-Autonomous-Robot-Lab/emcl2_ros2/actions/workflows/test.yml)
 
@@ -8,14 +8,14 @@ This package is ROS 2 version of [ryuichiueda/emcl2](https://github.com/ryuichiu
 
 ## ROS 2 version 
 
-* ROS 2 Humble Hawksbill
+* ROS 2 Humble 
 
 ## quick start
 
 ### Install & Build
 ```
 mkdir ros2_ws && cd ros2_ws
-git clone git@github.com:CIT-Autonomous-Robot-Lab/emcl2_ros2.git ./src/emcl2_ros2
+git clone -b devel/pcl_ver https://github.com/MACMORNING-TEAM/emcl2_macmorning.git
 rosdep update
 rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 sudo apt install -y ros-$ROS_DISTRO-navigation2 ros-$ROS_DISTRO-nav2-bringup ros-$ROS_DISTRO-turtlebot3-gazebo
@@ -23,16 +23,19 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
 ```
 
-### Try emcl2 in simulator
+### Try emcl2 in jimbot simulator
 
 You may wait Gazebo to be initilalized. You can also use `./test/demo.bash`, in which the following procedure is written. 
 
 ```
 export TURTLEBOT3_MODEL=burger
-ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+ros2 launch jimbot_gazebo turtlebot3_house.launch.py
+
+ros2 run teleop_twist_keyboard teleop_twist_keyboard
+
 ros2 launch nav2_bringup rviz_launch.py
-ros2 launch emcl2 emcl2.launch.py params_file:=$(ros2 pkg prefix --share emcl2)/config/emcl2_quick_start.param.yaml map:=$(ros2 pkg prefix --share nav2_bringup)/maps/turtlebot3_world.yaml use_sim_time:=true
-ros2 launch nav2_bringup navigation_launch.py use_sim_time:=true
+
+ros2 launch emcl2 emcl2.launch.py params_file:=$(ros2 pkg prefix --share emcl2)/config/emcl2.param.yaml map:=/home/jimin/ros2_ws/src/emcl2_ros2/map/house.yaml use_sim_time:=true
 ```
 
 ## demo movies 
