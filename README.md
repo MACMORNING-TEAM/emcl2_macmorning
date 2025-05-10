@@ -13,6 +13,7 @@ This package is ROS 2 version of [ryuichiueda/emcl2](https://github.com/ryuichiu
 ## quick start
 
 ### Install & Build
+브랜치는 devel/pcl_ver로 할 것.
 ```
 mkdir ros2_ws && cd ros2_ws
 git clone -b devel/pcl_ver https://github.com/MACMORNING-TEAM/emcl2_macmorning.git
@@ -21,21 +22,6 @@ rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 sudo apt install -y ros-$ROS_DISTRO-navigation2 ros-$ROS_DISTRO-nav2-bringup ros-$ROS_DISTRO-turtlebot3-gazebo
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 source install/setup.bash
-```
-
-### Try emcl2 in jimbot simulator
-
-You may wait Gazebo to be initilalized. You can also use `./test/demo.bash`, in which the following procedure is written. 
-
-```
-export TURTLEBOT3_MODEL=burger
-ros2 launch jimbot_gazebo turtlebot3_house.launch.py
-
-ros2 run teleop_twist_keyboard teleop_twist_keyboard
-
-ros2 launch nav2_bringup rviz_launch.py
-
-ros2 launch emcl2 emcl2.launch.py params_file:=$(ros2 pkg prefix --share emcl2)/config/emcl2.param.yaml map:=/home/jimin/ros2_ws/src/emcl2_ros2/map/house.yaml use_sim_time:=true
 ```
 
 ### Try emcl2 in realworld
