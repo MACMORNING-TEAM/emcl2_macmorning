@@ -8,8 +8,8 @@
 
     scan1_frame_id: "laser_right"
     scan2_frame_id: "laser_left"
-    scan1_topic: "/scan_1"
-    scan2_topic: "/scan_2"
+    scan1_topic: "/scan_right"
+    scan2_topic: "/scan_left"
 
     footprint_frame_id: "base_link"
     
@@ -19,19 +19,15 @@
     initial_pose_x: 0.0
     initial_pose_y: 0.0
     initial_pose_a: 0.0
-    num_particles: 1200
+    num_particles: 500
     alpha_threshold: 0.5
     expansion_radius_position: 0.1
     expansion_radius_orientation: 0.2
     extraction_rate: 0.1
     range_threshold: 0.3
     sensor_reset: false
-    # odom_fw_dev_per_fw: 0.19
-    # odom_fw_dev_per_rot: 0.0001
-    # odom_rot_dev_per_fw: 0.013
-    # odom_rot_dev_per_rot: 0.005
     odom_fw_dev_per_fw: 0.19
-    odom_fw_dev_per_rot: 0.001
-    odom_rot_dev_per_fw: 0.013
-    odom_rot_dev_per_rot: 0.5
-    laser_likelihood_max_dist: 0.5
+    odom_fw_dev_per_rot: 0.0001
+    odom_rot_dev_per_fw: 0.13
+    odom_rot_dev_per_rot: 0.2
+    laser_likelihood_max_dist: 0.2

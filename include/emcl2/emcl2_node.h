@@ -111,7 +111,7 @@ class EMcl2Node : public rclcpp::Node
 	bool getLidarPose(double & x, double & y, double & yaw, bool & inv, std::string scan_frame_id);
 	void receiveMap(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr msg);
 
-	void publishCombinedCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &combined_cloud);
+	void publishCombinedCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &combined_cloud, double x, double y, double t);
 
 	void declareParameter();
 

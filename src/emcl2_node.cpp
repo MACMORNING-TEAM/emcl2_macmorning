@@ -1,7 +1,3 @@
-// SPDX-FileCopyrightText: 2022 Ryuichi Ueda ryuichiueda@gmail.com
-// SPDX-License-Identifier: LGPL-3.0-or-later
-// CAUTION: Some lines came from amcl (LGPL).
-
 #include "emcl2/emcl2_node.h"
 
 #include "emcl2/LikelihoodFieldMap.h"
@@ -58,7 +54,7 @@ void EMcl2Node::declareParameter()
 	this->declare_parameter("scan1_topic", std::string("scan_right"));
 	this->declare_parameter("scan2_topic", std::string("scan_left"));
 	this->declare_parameter("scan1_frame_id", std::string("laser_right"));
-	this->declare_parameter("scna2_frame_id", std::string("laser_left"));
+	this->declare_parameter("scan2_frame_id", std::string("laser_left"));
 
 	this->declare_parameter("odom_freq", 20);
 	this->declare_parameter("transform_tolerance", 0.2);
@@ -108,15 +104,10 @@ void EMcl2Node::initCommunication(void)
 	alpha_pub_ = create_publisher<std_msgs::msg::Float32>("alpha", 2);
 	combined_cloud_pub_ = create_publisher<sensor_msgs::msg::PointCloud2>("/combined_cloud", 10);
 
-	// laser_scan_sub1_ = create_subscription<sensor_msgs::msg::LaserScan>(
-	//   scan1_topic_, 2, std::bind(&EMcl2Node::cbScan1, this, std::placeholders::_1));
-	// laser_scan_sub1_ = create_subscription<sensor_msgs::msg::LaserScan>(
-	//   scan2_topic_, 2, std::bind(&EMcl2Node::cbScan2, this, std::placeholders::_1));
-	
 	laser_scan_sub1_ = create_subscription<sensor_msgs::msg::LaserScan>(
-		"scan_right", 2, std::bind(&EMcl2Node::cbScan1, this, std::placeholders::_1));
+	  scan1_topic_, 2, std::bind(&EMcl2Node::cbScan1, this, std::placeholders::_1));
 	laser_scan_sub2_ = create_subscription<sensor_msgs::msg::LaserScan>(
-		"scan_left", 2, std::bind(&EMcl2Node::cbScan2, this, std::placeholders::_1));
+	  scan2_topic_, 2, std::bind(&EMcl2Node::cbScan2, this, std::placeholders::_1));
 		
 	initial_pose_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
 	  "initialpose", 2,
@@ -222,14 +213,11 @@ void EMcl2Node::cbScan1(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
 {
 	if (init_pf_) {
 
-		scan1_frame_id_ = "laser_right";
-
-		// RCLCPP_INFO(get_logger(), "jiminimiijminini1:","%s", scan1_frame_id_.c_str());
-
-
 		double lx1, ly1, lt1;
 		bool inv1;
+
 		if (!getLidarPose(lx1, ly1, lt1, inv1, scan1_frame_id_)) {
+			RCLCPP_INFO(get_logger(), "scan1_frame_id_: '%s'", scan1_frame_id_.c_str());
 			RCLCPP_INFO(get_logger(), "can't get lidar pose info");
 			return;
 		}	
@@ -259,14 +247,13 @@ void EMcl2Node::cbScan2(const sensor_msgs::msg::LaserScan::ConstSharedPtr msg)
 {
 	if (init_pf_) {
 
-		scan2_frame_id_ = "laser_left";
-
-
-		// RCLCPP_INFO(get_logger(), "jiminimiijminini2:","%s", scan2_frame_id_.c_str());
+		// scan2_frame_id_ = "laser_left";
 
 		double lx2, ly2, lt2;
 		bool inv2;
 		if (!getLidarPose(lx2, ly2, lt2, inv2, scan2_frame_id_)) {
+			RCLCPP_INFO(get_logger(), "scan2_frame_id_: '%s'", scan2_frame_id_.c_str());
+
 			RCLCPP_INFO(get_logger(), "can't get lidar pose info");
 			return;
 		}	
@@ -309,7 +296,7 @@ void EMcl2Node::initialPoseReceived(
 			if ( !(scan1_receive_ && scan2_receive_) ) {
 				RCLCPP_WARN(
 				  get_logger(),
-				  "Not yet received scan. Therefore, MCL cannot be initiated.");
+				  "N scan. Therefore, MCL cannot be initiated.");
 			}
 			if (!map_receive_) {
 				RCLCPP_WARN(
@@ -357,20 +344,14 @@ void EMcl2Node::loop(void)
 			*combined_cloud = *cloud_1_;
 		if(scan2_receive_)
 			*combined_cloud += *cloud_2_;
-		
-		// std::cout << cloud_1_->size() << ": cloud_1_->size()" << std::endl;
-
-		// std::cout << cloud_2_->size() << ": cloud_2_->size()" << std::endl;
 
 		// pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 		pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
 		voxel_filter.setInputCloud(combined_cloud);
-		voxel_filter.setLeafSize(0.02f, 0.02f, 0.02f);  
+		voxel_filter.setLeafSize(0.05f, 0.05f, 0.05f);  
 		voxel_filter.filter(*combined_cloud);		
 
 		// std::cout << combined_cloud->size() << ": combined_cloud->size()" << std::endl;
-
-		publishCombinedCloud(combined_cloud);
 
 		// likelihood 계산
 		// resampling
@@ -378,6 +359,8 @@ void EMcl2Node::loop(void)
 
 		double x_var, y_var, t_var, xy_cov, yt_cov, tx_cov;
 		pf_->meanPose(x, y, t, x_var, y_var, t_var, xy_cov, yt_cov, tx_cov);
+
+		publishCombinedCloud(combined_cloud, x, y, t);
 
 		publishOdomFrame(x, y, t);
 		publishPose(x, y, t, x_var, y_var, t_var, xy_cov, yt_cov, tx_cov);
@@ -400,19 +383,39 @@ void EMcl2Node::loop(void)
 	}
 }
 
-void EMcl2Node::publishCombinedCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &combined_cloud)
-{
-  // sensor_msgs의 PointCloud2 메시지로 변환
-  sensor_msgs::msg::PointCloud2 cloud_msg;
-  pcl::toROSMsg(*combined_cloud, cloud_msg);
+// void EMcl2Node::publishCombinedCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &combined_cloud, double x, double y, double t)
+// {
+//   // sensor_msgs의 PointCloud2 메시지로 변환
+//   sensor_msgs::msg::PointCloud2 cloud_msg;
+//   pcl::toROSMsg(*combined_cloud, cloud_msg);
   
-  // header stamp와 frame_id 설정 (적절한 프레임 이름으로 변경 필요)
-  cloud_msg.header.stamp = this->get_clock()->now();
-  cloud_msg.header.frame_id = footprint_frame_id_;  // 예: "map" 또는 "odom", 적절한 frame_id로 수정
+//   // header stamp와 frame_id 설정 (적절한 프레임 이름으로 변경 필요)
+//   cloud_msg.header.stamp = this->get_clock()->now();
+//   cloud_msg.header.frame_id = global_frame_id_;  // 예: "map" 또는 "odom", 적절한 frame_id로 수정
 
-  // publisher를 통해 메시지 발행
-  combined_cloud_pub_->publish(cloud_msg);
-}
+//   // publisher를 통해 메시지 발행
+//   combined_cloud_pub_->publish(cloud_msg);
+// }
+
+void EMcl2Node::publishCombinedCloud(
+	const pcl::PointCloud<pcl::PointXYZ>::Ptr &combined_cloud,
+	double x, double y, double t)
+  {
+	Eigen::Affine3f tf = Eigen::Affine3f::Identity();
+	tf.translation() << x, y, 0.0f;
+	tf.rotate(Eigen::AngleAxisf(static_cast<float>(t), Eigen::Vector3f::UnitZ()));
+  
+	pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+	pcl::transformPointCloud(*combined_cloud, *transformed_cloud, tf);
+  
+	sensor_msgs::msg::PointCloud2 cloud_msg;
+	pcl::toROSMsg(*transformed_cloud, cloud_msg);
+  
+	cloud_msg.header.stamp = this->get_clock()->now();
+	cloud_msg.header.frame_id = global_frame_id_;  // 예: "map" 또는 "odom"
+  
+	combined_cloud_pub_->publish(cloud_msg);
+  }
 
 void EMcl2Node::publishPose(
   double x, double y, double t, double x_dev, double y_dev, double t_dev, double xy_cov,
@@ -492,9 +495,7 @@ void EMcl2Node::publishParticles(void)
 
 bool EMcl2Node::getOdomPose(double & x, double & y, double & yaw)
 {
-	// ident는 (0, 0, 0)의 pose, 즉 로봇 기준점에서의 Pose를 의미해.
-	// "base_footprint" (또는 "base_link") 기준으로 "지금 여기!"를 뜻함.
-	// 타임스탬프 0이면 가장 최신 TF를 쓰겠다는 의미.
+	// base_footprint의 (0,0,0) 포즈를 odom 프레임 기준으로 바꿔주는 역할
 	geometry_msgs::msg::PoseStamped ident;
 	ident.header.frame_id = footprint_frame_id_;
 	ident.header.stamp = rclcpp::Time(0);

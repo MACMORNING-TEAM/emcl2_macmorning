@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <random>
 
 namespace emcl2
 {
@@ -249,12 +250,30 @@ void Mcl::resetWeight(void)
 }
 
 
-// 여기에 dampling기능 추가
+// // 여기에 dampling기능 추가
+// void Mcl::initialize(double x, double y, double t)
+// {
+// 	Pose new_pose(x, y, t);
+// 	for (auto & p : particles_) {
+// 		p.p_ = new_pose;
+// 	}
+
+// 	resetWeight();
+// }
+
 void Mcl::initialize(double x, double y, double t)
 {
-	Pose new_pose(x, y, t);
+	std::default_random_engine gen(std::random_device{}());
+
+	std::normal_distribution<double> dx(0.0, 0.5);   // x ± 5cm
+	std::normal_distribution<double> dy(0.0, 0.5);   // y ± 5cm
+	std::normal_distribution<double> dt(0.0, 0.15);   // theta ± 약 3도
+
 	for (auto & p : particles_) {
-		p.p_ = new_pose;
+		double noisy_x = x + dx(gen);
+		double noisy_y = y + dy(gen);
+		double noisy_t = t + dt(gen);
+		p.p_ = Pose(noisy_x, noisy_y, noisy_t);
 	}
 
 	resetWeight();
