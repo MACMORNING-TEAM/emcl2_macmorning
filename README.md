@@ -38,7 +38,7 @@ ros2 launch emcl2 debug_rviz.launch.py
 
 ### Try emcl2 in jimbot simulator
 
-You may wait Gazebo to be initilalized. You can also use `./test/demo.bash`, in which the following procedure is written. 
+Gazebo jimbot시뮬에서 실행시 
 
 ```
 export TURTLEBOT3_MODEL=burger
@@ -46,9 +46,9 @@ ros2 launch jimbot_gazebo turtlebot3_house.launch.py
 
 ros2 run teleop_twist_keyboard teleop_twist_keyboard
 
-ros2 launch nav2_bringup rviz_launch.py
+ros2 launch emcl2 debug_rviz.launch.py
 
-ros2 launch emcl2 emcl2.launch.py params_file:=$(ros2 pkg prefix --share emcl2)/config/emcl2_sim.param.yaml map:=/home/jimin/ros2_ws/src/emcl2_ros2/map/house.yaml use_sim_time:=true
+ros2 launch emcl2 emcl2.launch.py params_file:=$(ros2 pkg prefix --share emcl2)/config/emcl2_sim.param.yaml map:=$(ros2 pkg prefix --share emcl2)/map/house.yaml use_sim_time:=true
 ```
 
 
