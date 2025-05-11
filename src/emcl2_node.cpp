@@ -122,21 +122,31 @@ void EMcl2Node::initCommunication(void)
 
 }
 
-void EMcl2Node::initTF(void)
+void EMcl2Node::initTF()
 {
-	tfb_.reset();
-	tfl_.reset();
-	tf_.reset();
+  tfb_.reset();
+  tfl_.reset();
+  tf_.reset();
 
-	tf_ = std::make_shared<tf2_ros::Buffer>(get_clock());
-	auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
-	  get_node_base_interface(), get_node_timers_interface(),
-	  create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false));
-	tf_->setCreateTimerInterface(timer_interface);
-	tfl_ = std::make_shared<tf2_ros::TransformListener>(*tf_);
-	tfb_ = std::make_shared<tf2_ros::TransformBroadcaster>(shared_from_this());
-	latest_tf_ = tf2::Transform::getIdentity();
+  // 1) 10초짜리 캐시 타임을 설정
+  tf2::Duration cache_time = tf2::durationFromSec(10.0);
+
+  // 2) Buffer 생성자에 cache_time 인자 추가
+  tf_ = std::make_shared<tf2_ros::Buffer>(get_clock(), cache_time);
+
+  // 3) 타이머 인터페이스 등록 (기존 코드)
+  auto timer_interface = std::make_shared<tf2_ros::CreateTimerROS>(
+    get_node_base_interface(), get_node_timers_interface(),
+    create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive, false));
+  tf_->setCreateTimerInterface(timer_interface);
+
+  // 4) TransformListener/Broadcaster 생성 (기존 코드)
+  tfl_ = std::make_shared<tf2_ros::TransformListener>(*tf_);
+  tfb_ = std::make_shared<tf2_ros::TransformBroadcaster>(shared_from_this());
+
+  latest_tf_ = tf2::Transform::getIdentity();
 }
+
 
 void EMcl2Node::initPF(void)
 {
@@ -360,7 +370,7 @@ void EMcl2Node::loop(void)
 		double x_var, y_var, t_var, xy_cov, yt_cov, tx_cov;
 		pf_->meanPose(x, y, t, x_var, y_var, t_var, xy_cov, yt_cov, tx_cov);
 
-		publishCombinedCloud(combined_cloud, x, y, t);
+		// publishCombinedCloud(combined_cloud, x, y, t);
 
 		publishOdomFrame(x, y, t);
 		publishPose(x, y, t, x_var, y_var, t_var, xy_cov, yt_cov, tx_cov);
@@ -445,6 +455,7 @@ void EMcl2Node::publishPose(
 
 void EMcl2Node::publishOdomFrame(double x, double y, double t)
 {
+	
 	geometry_msgs::msg::PoseStamped odom_to_map;
 	try {
 		tf2::Quaternion q;
@@ -453,14 +464,25 @@ void EMcl2Node::publishOdomFrame(double x, double y, double t)
 
 		geometry_msgs::msg::PoseStamped tmp_tf_stamped;
 		tmp_tf_stamped.header.frame_id = footprint_frame_id_;
-		tmp_tf_stamped.header.stamp = scan_time_stamp_;
+		
+		rclcpp::Time now = get_clock()->now();
+		builtin_interfaces::msg::Time stamp_msg;
+		stamp_msg.sec = now.seconds();  
+		stamp_msg.nanosec = now.nanoseconds() % 1000000000ull;  // 나노초
+		tmp_tf_stamped.header.stamp = stamp_msg;
+
 		tf2::toMsg(tmp_tf.inverse(), tmp_tf_stamped.pose);
 
 		tf_->transform(tmp_tf_stamped, odom_to_map, odom_frame_id_);
 	} catch (tf2::TransformException & e) {
-		RCLCPP_DEBUG(get_logger(), "Failed to subtract base to odom transform");
+		RCLCPP_INFO(
+		  get_logger(),
+		  "Failed to subtract base to odom transform: %s",
+		  e.what()
+		);
 		return;
 	}
+
 	tf2::convert(odom_to_map.pose, latest_tf_);
 	auto stamp = tf2_ros::fromMsg(scan_time_stamp_);
 	tf2::TimePoint transform_expiration = stamp + tf2::durationFromSec(transform_tolerance_);
