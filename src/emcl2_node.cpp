@@ -465,11 +465,26 @@ void EMcl2Node::publishOdomFrame(double x, double y, double t)
 		geometry_msgs::msg::PoseStamped tmp_tf_stamped;
 		tmp_tf_stamped.header.frame_id = footprint_frame_id_;
 		
-		rclcpp::Time now = get_clock()->now();
-		builtin_interfaces::msg::Time stamp_msg;
-		stamp_msg.sec = now.seconds();  
-		stamp_msg.nanosec = now.nanoseconds() % 1000000000ull;  // 나노초
-		tmp_tf_stamped.header.stamp = stamp_msg;
+		// rclcpp::Time now = get_clock()->now();
+		// builtin_interfaces::msg::Time stamp_msg;
+		// stamp_msg.sec = now.seconds();  
+		// stamp_msg.nanosec = now.nanoseconds() % 1000000000ull;  // 나노초
+		// tmp_tf_stamped.header.stamp = stamp_msg;
+		
+		// scan_time_stamp_에서 0.3초를 뺄 Duration 생성
+		auto offset = rclcpp::Duration::from_seconds(0.05);
+
+		// 0.3초 뺀 새로운 Time
+		rclcpp::Time adj_stamp = scan_time_stamp_ - offset;
+		
+		// tf2::TimePoint latest_tp =
+		// tf_->getLatestCommonTime(footprint_frame_id_, odom_frame_id_);
+
+		// // 2) 0.2초짜리 Duration 생성
+		// tf2::Duration offset = tf2::durationFromSec(0.9);
+
+		// // 3) 빼기 연산
+		// tf2::TimePoint adjusted_tp = latest_tp - offset;
 
 		tf2::toMsg(tmp_tf.inverse(), tmp_tf_stamped.pose);
 

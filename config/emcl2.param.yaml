@@ -4,14 +4,13 @@
     transform_tolerance: 0.2
     global_frame_id: "map"
     odom_frame_id: "odom"
-    base_frame_id: "base_link"
-
+    base_frame_id: "base_link
     scan1_frame_id: "laser_right"
     scan2_frame_id: "laser_left"
     scan1_topic: "/scan_1"
     scan2_topic: "/scan_2"
 
-    footprint_frame_id: "base_link"
+    footprint_frame_id: "base_footprint"
     
     laser_min_range: 0.0
     laser_max_range: 100000000.0
