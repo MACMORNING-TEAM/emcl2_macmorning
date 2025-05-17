@@ -465,9 +465,10 @@ void EMcl2Node::publishOdomFrame(double x, double y, double t)
 		geometry_msgs::msg::PoseStamped tmp_tf_stamped;
 		tmp_tf_stamped.header.frame_id = footprint_frame_id_;
 		
-		rclcpp::Time now = get_clock()->now();
+		// rclcpp::Time now = get_clock()->now();
+		rclcpp::Time now = this->now();
 		builtin_interfaces::msg::Time stamp_msg;
-		stamp_msg.sec = now.seconds();  
+		stamp_msg.sec = now.seconds()-1;
 		stamp_msg.nanosec = now.nanoseconds() % 1000000000ull;  // 나노초
 		tmp_tf_stamped.header.stamp = stamp_msg;
 

@@ -29,30 +29,30 @@ def generate_launch_description():
             TextSubstitution(text='emcl2.param.yaml')],
         description='emcl2 param file path')
 
-    lifecycle_nodes = ['map_server']
+    # lifecycle_nodes = ['map_server']
 
     launch_node = GroupAction(
         actions=[
             SetParameter('use_sim_time', use_sim_time),
-            Node(
-                package='nav2_map_server',
-                executable='map_server',
-                name='map_server',
-                parameters=[{'yaml_filename': map_yaml_file}],
-                output='screen'),
+            # Node(
+            #     package='nav2_map_server',
+            #     executable='map_server',
+            #     name='map_server',
+            #     parameters=[{'yaml_filename': map_yaml_file}],
+            #     output='screen'),
             Node(
                 name='emcl2',
                 package='emcl2',
                 executable='emcl2_node',
                 parameters=[params_file],
                 output='screen'),
-            Node(
-                package='nav2_lifecycle_manager',
-                executable='lifecycle_manager',
-                name='lifecycle_manager_localization',
-                output='screen',
-                parameters=[{'autostart': True},
-                            {'node_names': lifecycle_nodes}])
+            # Node(
+            #     package='nav2_lifecycle_manager',
+            #     executable='lifecycle_manager',
+            #     name='lifecycle_manager_localization',
+            #     output='screen',
+            #     parameters=[{'autostart': True},
+            #                 {'node_names': lifecycle_nodes}])
         ]
     )
 
