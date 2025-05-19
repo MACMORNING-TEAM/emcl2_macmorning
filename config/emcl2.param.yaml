@@ -4,7 +4,7 @@
     transform_tolerance: 0.2
     global_frame_id: "map"
     odom_frame_id: "odom"
-    base_frame_id: "base_link
+    base_frame_id: "base_link"
     scan1_frame_id: "laser_right"
     scan2_frame_id: "laser_left"
     scan1_topic: "/scan_1"

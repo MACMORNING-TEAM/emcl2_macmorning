@@ -34,12 +34,12 @@ def generate_launch_description():
     launch_node = GroupAction(
         actions=[
             SetParameter('use_sim_time', use_sim_time),
-            Node(
-                package='nav2_map_server',
-                executable='map_server',
-                name='map_server',
-                parameters=[{'yaml_filename': map_yaml_file}],
-                output='screen'),
+            # Node(
+            #     package='nav2_map_server',
+            #     executable='map_server',
+            #     name='map_server',
+            #     parameters=[{'yaml_filename': map_yaml_file}],
+            #     output='screen'),
             Node(
                 name='emcl2',
                 package='emcl2',
